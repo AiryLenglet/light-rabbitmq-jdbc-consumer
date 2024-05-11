@@ -1,0 +1,8 @@
+CREATE TABLE books (
+	id INT GENERATED AS IDENTITY,
+	author     VARCHAR2(45) NOT NULL,
+	CONSTRAINT books_pk PRIMARY KEY(id)
+);
+
+INSERT INTO books (author) VALUES ('Meow');
+COMMIT;
