@@ -2,13 +2,14 @@ package me.lenglet;
 
 import com.alibaba.fastjson2.JSON;
 import com.rabbitmq.client.*;
-import oracle.jdbc.datasource.impl.OracleDataSource;
+import com.zaxxer.hikari.HikariDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.Properties;
 
 public class Main {
 
@@ -26,10 +27,17 @@ public class Main {
         final var queueName = System.getProperty("QUEUE_NAME");
         channel.queueDeclare(queueName, true, false, false, null);
 
-        final var dataSource = new OracleDataSource();
-        dataSource.setUser(System.getProperty("DB_USER"));
+        final var dataSource = new HikariDataSource();
+        dataSource.setUsername(System.getProperty("DB_USER"));
         dataSource.setPassword(System.getProperty("DB_PWD"));
-        dataSource.setURL(System.getProperty("JDBC_URL"));
+        dataSource.setJdbcUrl(System.getProperty("JDBC_URL"));
+        dataSource.setAutoCommit(false);
+        dataSource.setTransactionIsolation("TRANSACTION_READ_COMMITTED");
+        dataSource.setMaximumPoolSize(1);
+
+        final var dsProperties = new Properties();
+        dsProperties.setProperty("oracle.jdbc.implicitStatementCacheSize", "5");
+        dataSource.setDataSourceProperties(dsProperties);
 
         final var consumer = new Consumer(channel, dataSource);
         channel.basicConsume(queueName, false, consumer, consumerTag -> {
@@ -63,8 +71,6 @@ public class Main {
                             WHERE id = ?
                             """);
             ) {
-                dbConnection.setAutoCommit(false);
-
                 final var event = JSON.parseObject(message.getBody(), Event.class);
                 LOGGER.info("Consuming {}", event);
 
