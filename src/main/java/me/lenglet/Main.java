@@ -10,6 +10,9 @@ import javax.sql.DataSource;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.Properties;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class Main {
 
@@ -20,8 +23,9 @@ public class Main {
 
         final var connectionFactory = new ConnectionFactory();
         connectionFactory.setHost(System.getProperty("QUEUE_HOST"));
+        connectionFactory.setThreadFactory(new NamedThreadFactory("AMQP-Connection-"));
         //connectionFactory.setPassword();
-        final var connection = connectionFactory.newConnection();
+        final var connection = connectionFactory.newConnection(Executors.newSingleThreadExecutor(new NamedThreadFactory("AMQP-Consumer-")));
         final var channel = connection.createChannel();
 
         final var queueName = System.getProperty("QUEUE_NAME");
@@ -34,6 +38,7 @@ public class Main {
         dataSource.setAutoCommit(false);
         dataSource.setTransactionIsolation("TRANSACTION_READ_COMMITTED");
         dataSource.setMaximumPoolSize(1);
+        dataSource.setPoolName("hikari-pool");
 
         final var dsProperties = new Properties();
         dsProperties.setProperty("oracle.jdbc.implicitStatementCacheSize", "5");
@@ -44,6 +49,21 @@ public class Main {
         });
 
         LOGGER.info("Starting to consume");
+    }
+
+    private static class NamedThreadFactory implements ThreadFactory {
+
+        private final AtomicInteger threadCount = new AtomicInteger(1);
+        private final String prefix;
+
+        public NamedThreadFactory(String prefix) {
+            this.prefix = prefix;
+        }
+
+        @Override
+        public Thread newThread(Runnable r) {
+            return new Thread(r, this.prefix + this.threadCount.getAndIncrement());
+        }
     }
 
     private static class Consumer implements DeliverCallback {
